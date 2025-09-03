@@ -156,20 +156,6 @@ namespace PeerViewer.Network
                         {
                             // Stop streaming (handled by cancellation token)
                         }
-                        else if (message == "AUDIO_REQUEST")
-                        {
-                            // Start continuous audio streaming
-                            await StartContinuousAudioStreamAsync(stream);
-                        }
-                        else if (message == "MIC_REQUEST")
-                        {
-                            // Start microphone capture and streaming
-                            await StartMicCaptureAsync(stream);
-                        }
-                        else if (message == "STOP_MIC")
-                        {
-                            // Stop microphone capture
-                        }
                     }
                 }
             }
@@ -215,72 +201,6 @@ namespace PeerViewer.Network
             catch (Exception)
             {
                 // Stream ended or error occurred
-            }
-        }
-
-        private async Task StartContinuousAudioStreamAsync(NetworkStream stream)
-        {
-            try
-            {
-                while (true)
-                {
-                    // Capture audio
-                    var audioData = CaptureAudio();
-                    if (audioData != null && audioData.Length > 0)
-                    {
-                        // Send audio header
-                        var header = "AUDIO:";
-                        var headerData = System.Text.Encoding.UTF8.GetBytes(header);
-                        await stream.WriteAsync(headerData, 0, headerData.Length);
-                        
-                        // Send audio size
-                        var sizeData = BitConverter.GetBytes(audioData.Length);
-                        await stream.WriteAsync(sizeData, 0, sizeData.Length);
-                        
-                        // Send audio data
-                        await stream.WriteAsync(audioData, 0, audioData.Length);
-                    }
-                    
-                    // Wait before next audio capture (adjust frequency as needed)
-                    await Task.Delay(100); // 100ms = 10fps audio
-                }
-            }
-            catch (Exception)
-            {
-                // Audio stream ended or error occurred
-            }
-        }
-
-        private async Task StartMicCaptureAsync(NetworkStream stream)
-        {
-            try
-            {
-                while (true)
-                {
-                    // Capture microphone audio
-                    var micData = CaptureMicrophoneAudio();
-                    if (micData != null && micData.Length > 0)
-                    {
-                        // Send mic header
-                        var header = "MIC:";
-                        var headerData = System.Text.Encoding.UTF8.GetBytes(header);
-                        await stream.WriteAsync(headerData, 0, headerData.Length);
-                        
-                        // Send mic size
-                        var sizeData = BitConverter.GetBytes(micData.Length);
-                        await stream.WriteAsync(sizeData, 0, sizeData.Length);
-                        
-                        // Send mic data
-                        await stream.WriteAsync(micData, 0, micData.Length);
-                    }
-                    
-                    // Wait before next mic capture
-                    await Task.Delay(50); // 50ms = 20fps mic audio
-                }
-            }
-            catch (Exception)
-            {
-                // Mic stream ended or error occurred
             }
         }
 
@@ -477,42 +397,6 @@ namespace PeerViewer.Network
             {
                 System.Diagnostics.Debug.WriteLine($"Screenshot error: {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-                return null;
-            }
-        }
-
-        private byte[] CaptureAudio()
-        {
-            try
-            {
-                // This is a placeholder for actual audio capture
-                // In a real implementation, you would use NAudio or similar library
-                // to capture system audio (speakers/headphones output)
-                
-                // For now, return empty data to prevent errors
-                return new byte[0];
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Audio capture error: {ex.Message}");
-                return null;
-            }
-        }
-
-        private byte[] CaptureMicrophoneAudio()
-        {
-            try
-            {
-                // This is a placeholder for actual microphone capture
-                // In a real implementation, you would use NAudio or similar library
-                // to capture microphone input
-                
-                // For now, return empty data to prevent errors
-                return new byte[0];
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Microphone capture error: {ex.Message}");
                 return null;
             }
         }

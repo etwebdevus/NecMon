@@ -22,7 +22,6 @@ namespace PeerViewer.Network
         public event EventHandler<ScreenshotData> ScreenshotReceived;
         public event EventHandler<Exception> ErrorOccurred;
         public event EventHandler Disconnected;
-        public event EventHandler<byte[]> AudioDataReceived;
 
         public PeerConnection(PeerInfo peerInfo)
         {
@@ -84,20 +83,7 @@ namespace PeerViewer.Network
             return await SendMessageAsync("STOP_STREAMING");
         }
 
-        public async Task<bool> RequestAudioStreamAsync()
-        {
-            return await SendMessageAsync("AUDIO_REQUEST");
-        }
 
-        public async Task<bool> RequestMicStreamAsync()
-        {
-            return await SendMessageAsync("MIC_REQUEST");
-        }
-
-        public async Task<bool> StopMicStreamAsync()
-        {
-            return await SendMessageAsync("STOP_MIC");
-        }
 
         private async Task ListenForDataAsync()
         {
@@ -151,20 +137,7 @@ namespace PeerViewer.Network
                         System.Diagnostics.Debug.WriteLine($"⚠ Failed to receive screenshot from {PeerInfo.Name}");
                     }
                 }
-                else if (message.StartsWith("AUDIO:"))
-                {
-                    System.Diagnostics.Debug.WriteLine($"🔊 Processing audio data from {PeerInfo.Name}");
-                    // Handle audio data
-                    var audioData = await ReceiveAudioDataAsync();
-                    if (audioData != null)
-                    {
-                        OnAudioDataReceived(audioData);
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"⚠ Failed to receive audio from {PeerInfo.Name}");
-                    }
-                }
+
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠ Unknown message format from {PeerInfo.Name}: {message}");
@@ -177,78 +150,7 @@ namespace PeerViewer.Network
             }
         }
 
-        private async Task<byte[]> ReceiveAudioDataAsync()
-        {
-            try
-            {
-                // Read audio size (4 bytes for int32)
-                var sizeBuffer = new byte[4];
-                var sizeBytesRead = await _stream.ReadAsync(sizeBuffer, 0, 4);
-                
-                if (sizeBytesRead != 4)
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠ Incomplete audio size data: expected 4 bytes, got {sizeBytesRead}");
-                    return null;
-                }
-                
-                var size = BitConverter.ToInt32(sizeBuffer, 0);
-                
-                // Validate size
-                if (size <= 0 || size > 1024 * 1024) // Max 1MB
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠ Invalid audio size: {size} bytes (max allowed: 1MB)");
-                    return null;
-                }
-                
-                System.Diagnostics.Debug.WriteLine($"🔊 Receiving audio: {size} bytes from {PeerInfo.Name}");
 
-                // Read audio data
-                var audioBuffer = new byte[size];
-                var totalRead = 0;
-                var remainingBytes = size;
-                var startTime = DateTime.Now;
-                var timeout = TimeSpan.FromSeconds(10); // 10 second timeout
-                
-                while (totalRead < size && remainingBytes > 0)
-                {
-                    // Check timeout
-                    if (DateTime.Now - startTime > timeout)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"⚠ Timeout while receiving audio from {PeerInfo.Name}");
-                        return null;
-                    }
-                    
-                    var bytesToRead = Math.Min(remainingBytes, 8192);
-                    var read = await _stream.ReadAsync(audioBuffer, totalRead, bytesToRead);
-                    
-                    if (read == 0)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"⚠ Connection closed while receiving audio data");
-                        break;
-                    }
-                    
-                    totalRead += read;
-                    remainingBytes -= read;
-                }
-
-                if (totalRead == size)
-                {
-                    System.Diagnostics.Debug.WriteLine($"✓ Audio data received completely: {totalRead} bytes");
-                    return audioBuffer;
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠ Incomplete audio data: expected {size}, got {totalRead}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ ERROR in ReceiveAudioDataAsync: {ex.Message}");
-                OnErrorOccurred(ex);
-            }
-
-            return null;
-        }
 
         private async Task<ScreenshotData> ReceiveScreenshotAsync()
         {
@@ -378,10 +280,7 @@ namespace PeerViewer.Network
             Disconnected?.Invoke(this, EventArgs.Empty);
         }
 
-        protected virtual void OnAudioDataReceived(byte[] audioData)
-        {
-            AudioDataReceived?.Invoke(this, audioData);
-        }
+
 
         public void Disconnect()
         {
