@@ -70,7 +70,7 @@ namespace PeerViewer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 400
+                SplitterDistance = 250
             };
 
             // Left panel - Peer list
@@ -181,6 +181,9 @@ namespace PeerViewer
 
             _splitContainer.Panel1.Controls.Add(leftPanel);
             _splitContainer.Panel2.Controls.Add(rightPanel);
+            _splitContainer.FixedPanel = FixedPanel.Panel1; // keep peer list small
+            _splitContainer.Panel1MinSize = 400;
+            _splitContainer.SplitterDistance = 400;
 
             _mainPanel.Controls.Add(_splitContainer);
             this.Controls.Add(_mainPanel);
@@ -196,6 +199,19 @@ namespace PeerViewer
             _screenshotViewers = new Dictionary<string, ScreenshotViewerForm>();
             _screenshotService = new ScreenshotService();
             _peerDiscovery = new PeerDiscovery();
+            // Load saved user name from registry
+            try
+            {
+                using (var key = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\\NecMon"))
+                {
+                    var val = key?.GetValue("UserName") as string;
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        _peerDiscovery.LocalUserName = val;
+                    }
+                }
+            }
+            catch { }
 
             _lastScreenshotReceivedAt = new Dictionary<string, DateTime>();
             _heartbeatTimer = new Timer();
@@ -224,6 +240,10 @@ namespace PeerViewer
             // Create tray menu
             _trayMenu = new ContextMenuStrip();
             
+            var settingsItem = new ToolStripMenuItem("Settings");
+            settingsItem.Click += OnSettingsClicked;
+            _trayMenu.Items.Add(settingsItem);
+
             var showWindowItem = new ToolStripMenuItem("Show Window");
             showWindowItem.Click += OnShowWindowClicked;
             _trayMenu.Items.Add(showWindowItem);
@@ -241,6 +261,31 @@ namespace PeerViewer
             
             // Double-click tray icon to show window
             _trayIcon.DoubleClick += OnTrayIconDoubleClicked;
+        }
+
+        private void OnSettingsClicked(object sender, EventArgs e)
+        {
+            using (var form = new SettingsForm(_peerDiscovery.LocalUserName))
+            {
+                if (form.ShowDialog(this) == DialogResult.OK)
+                {
+                    _peerDiscovery.LocalUserName = form.UserName;
+                    // Persist to registry for next start
+                    try
+                    {
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"SOFTWARE\\NecMon"))
+                        {
+                            key?.SetValue("UserName", _peerDiscovery.LocalUserName);
+                        }
+                    }
+                    catch { }
+
+                    // Re-broadcast discovery so others see updated name
+                    Task.Run(async () => { try { await _peerDiscovery.SendDiscoveryBroadcastAsync(); } catch { } });
+
+                    UpdateStatus($"User name set to '{_peerDiscovery.LocalUserName}' and broadcasted.");
+                }
+            }
         }
 
         private async void OnFormLoad(object sender, EventArgs e)

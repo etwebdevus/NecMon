@@ -11,6 +11,7 @@ namespace PeerViewer.Models
         public DateTime LastSeen { get; set; }
         public bool IsOnline { get; set; }
         public string MachineName { get; set; }
+        public string UserName { get => Name; set => Name = value; }
         public string OSVersion { get; set; }
         private int _screenCount = 1;
         public int ScreenCount 

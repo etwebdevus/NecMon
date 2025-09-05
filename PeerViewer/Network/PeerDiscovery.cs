@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 
 using PeerViewer.Models;
@@ -21,6 +20,7 @@ namespace PeerViewer.Network
         private bool _isRunning = false;
         private readonly int _discoveryPort = 8888;
         private readonly int _servicePort = 8889;
+        public string LocalUserName { get; set; } = Environment.UserName;
 
         public event EventHandler<PeerInfo> PeerDiscovered;
         public event EventHandler<PeerInfo> PeerLost;
@@ -74,6 +74,16 @@ namespace PeerViewer.Network
         {
             _isRunning = false;
             
+            // Notify peers on the LAN that this app is exiting so they can remove us immediately
+            try
+            {
+                BroadcastExitNotification();
+            }
+            catch (Exception)
+            {
+                // Best-effort; ignore errors during shutdown broadcast
+            }
+            
             _discoveryClient?.Close();
             _listener?.Stop();
             
@@ -101,6 +111,16 @@ namespace PeerViewer.Network
                     {
                         System.Diagnostics.Debug.WriteLine($"   ✓ Valid PEER_DISCOVERY message - processing...");
                         ProcessDiscoveryMessage(message, result.RemoteEndPoint);
+                    }
+                    else if (message.StartsWith("PEER_EXIT:"))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"   ✓ PEER_EXIT message - removing peer...");
+                        var parts = message.Split(':');
+                        if (parts.Length >= 2)
+                        {
+                            var peerId = parts[1];
+                            RemovePeerById(peerId);
+                        }
                     }
                     else
                     {
@@ -191,6 +211,8 @@ namespace PeerViewer.Network
                             
                             // Send screenshot data
                             await stream.WriteAsync(imageData, 0, imageData.Length);
+                            await stream.FlushAsync();
+                            ms.Close();
                         }
                     }
                     
@@ -201,39 +223,6 @@ namespace PeerViewer.Network
             catch (Exception)
             {
                 // Stream ended or error occurred
-            }
-        }
-
-        private async Task SendScreenshotAsync(NetworkStream stream)
-        {
-            try
-            {
-                // Take screenshot
-                var screenshot = TakeScreenshot();
-                if (screenshot != null)
-                {
-                    using (var ms = new System.IO.MemoryStream())
-                    {
-                        screenshot.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                        var imageData = ms.ToArray();
-                        
-                        // Send screenshot header
-                        var header = "SCREENSHOT:";
-                        var headerData = System.Text.Encoding.UTF8.GetBytes(header);
-                        await stream.WriteAsync(headerData, 0, headerData.Length);
-                        
-                        // Send screenshot size
-                        var sizeData = BitConverter.GetBytes((long)imageData.Length);
-                        await stream.WriteAsync(sizeData, 0, sizeData.Length);
-                        
-                        // Send screenshot data
-                        await stream.WriteAsync(imageData, 0, imageData.Length);
-                    }
-                }
-            }
-            catch (Exception)
-            {
-                // Screenshot sending error
             }
         }
 
@@ -272,32 +261,32 @@ namespace PeerViewer.Network
                     
                     // Create bitmap with actual pixel dimensions
                     var screenshot = new System.Drawing.Bitmap(actualWidth, actualHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                    
+
                     using (var g = System.Drawing.Graphics.FromImage(screenshot))
                     {
                         // Get desktop window handle
                         var desktopWnd = GetDesktopWindow();
                         var desktopDC = GetWindowDC(desktopWnd);
                         var memDC = CreateCompatibleDC(desktopDC);
-                        
+
                         var hBitmap = CreateCompatibleBitmap(desktopDC, actualWidth, actualHeight);
                         var oldBitmap = SelectObject(memDC, hBitmap);
-                        
+
                         // Copy the screen content with DPI-aware dimensions
                         BitBlt(memDC, 0, 0, actualWidth, actualHeight, desktopDC, bounds.X, bounds.Y, SRCCOPY);
-                        
+
                         using (var finalImg = System.Drawing.Image.FromHbitmap(hBitmap))
                         {
                             g.DrawImage(finalImg, 0, 0);
                         }
-                        
+
                         // Clean up resources
                         SelectObject(memDC, oldBitmap);
                         DeleteObject(hBitmap);
                         DeleteDC(memDC);
                         ReleaseDC(desktopWnd, desktopDC);
                     }
-                    
+
                     return screenshot;
                 }
                 else
@@ -322,74 +311,74 @@ namespace PeerViewer.Network
                      
                      // Create combined bitmap with actual pixel dimensions
                      var combinedScreenshot = new System.Drawing.Bitmap(actualTotalWidth, actualTotalHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                     
-                     using (var g = System.Drawing.Graphics.FromImage(combinedScreenshot))
-                     {
-                         // Set background to black for areas not covered by screens
-                         g.Clear(System.Drawing.Color.Black);
-                         
-                         // Get desktop window handle once for all screens
-                         var desktopWnd = GetDesktopWindow();
-                         var desktopDC = GetWindowDC(desktopWnd);
-                         
-                         try
-                         {
-                             // Iterate through each screen
-                             foreach (var screen in screens)
-                             {
-                                 var bounds = screen.Bounds;
-                                 
-                                 // Get DPI for this specific screen
-                                 var (screenDpiX, screenDpiY) = GetDpiForScreen(screen);
-                                 
-                                 System.Diagnostics.Debug.WriteLine($"Processing screen: {screen.DeviceName}");
-                                 System.Diagnostics.Debug.WriteLine($"  Bounds: {bounds.Width}x{bounds.Height} at ({bounds.X},{bounds.Y})");
-                                 System.Diagnostics.Debug.WriteLine($"  Screen DPI: {screenDpiX}x{screenDpiY} (scaling: {screenDpiX / 96.0f:F2}x, {screenDpiY / 96.0f:F2}x)");
-                                 
-                                 // Calculate actual pixel dimensions for this screen
-                                 var actualScreenWidth = bounds.Width;
-                                 var actualScreenHeight = bounds.Height;
-                                
-                                 System.Diagnostics.Debug.WriteLine($"  Actual screen size: {actualScreenWidth}x{actualScreenHeight}");
-                                 
-                                 // Create memory DC for this screen
-                                 var memDC = CreateCompatibleDC(desktopDC);
-                                 var hBitmap = CreateCompatibleBitmap(desktopDC, actualScreenWidth, actualScreenHeight);
-                                 var oldBitmap = SelectObject(memDC, hBitmap);
-                                 
-                                 try
-                                 {
-                                     // Copy this screen's content with DPI-aware dimensions
-                                     BitBlt(memDC, 0, 0, actualScreenWidth, actualScreenHeight, desktopDC, bounds.X, bounds.Y, SRCCOPY);
-                                     
-                                     using (var screenImg = System.Drawing.Image.FromHbitmap(hBitmap))
-                                     {
-                                         // Calculate position relative to the combined bitmap (scaled by max DPI)
-                                         var relativeX = (int)((bounds.X - minX) * 96.0f / screenDpiX);
-                                         var relativeY = (int)((bounds.Y - minY) * 96.0f / screenDpiY);
-                                         
-                                         System.Diagnostics.Debug.WriteLine($"  Position in combined: ({relativeX},{relativeY})");
-                                         
-                                         // Draw the screen at its correct position
-                                         g.DrawImage(screenImg, relativeX, relativeY);
-                                     }
-                                 }
-                                 finally
-                                 {
-                                     // Clean up resources for this screen
-                                     SelectObject(memDC, oldBitmap);
-                                     DeleteObject(hBitmap);
-                                     DeleteDC(memDC);
-                                 }
-                             }
-                         }
-                         finally
-                         {
-                             // Clean up desktop DC
-                             ReleaseDC(desktopWnd, desktopDC);
-                         }
-                     }
-                    
+
+                    using (var g = System.Drawing.Graphics.FromImage(combinedScreenshot))
+                    {
+                        // Set background to black for areas not covered by screens
+                        g.Clear(System.Drawing.Color.Black);
+
+                        // Get desktop window handle once for all screens
+                        var desktopWnd = GetDesktopWindow();
+                        var desktopDC = GetWindowDC(desktopWnd);
+
+                        try
+                        {
+                            // Iterate through each screen
+                            foreach (var screen in screens)
+                            {
+                                var bounds = screen.Bounds;
+
+                                // Get DPI for this specific screen
+                                var (screenDpiX, screenDpiY) = GetDpiForScreen(screen);
+
+                                System.Diagnostics.Debug.WriteLine($"Processing screen: {screen.DeviceName}");
+                                System.Diagnostics.Debug.WriteLine($"  Bounds: {bounds.Width}x{bounds.Height} at ({bounds.X},{bounds.Y})");
+                                System.Diagnostics.Debug.WriteLine($"  Screen DPI: {screenDpiX}x{screenDpiY} (scaling: {screenDpiX / 96.0f:F2}x, {screenDpiY / 96.0f:F2}x)");
+
+                                // Calculate actual pixel dimensions for this screen
+                                var actualScreenWidth = bounds.Width;
+                                var actualScreenHeight = bounds.Height;
+
+                                System.Diagnostics.Debug.WriteLine($"  Actual screen size: {actualScreenWidth}x{actualScreenHeight}");
+
+                                // Create memory DC for this screen
+                                var memDC = CreateCompatibleDC(desktopDC);
+                                var hBitmap = CreateCompatibleBitmap(desktopDC, actualScreenWidth, actualScreenHeight);
+                                var oldBitmap = SelectObject(memDC, hBitmap);
+
+                                try
+                                {
+                                    // Copy this screen's content with DPI-aware dimensions
+                                    BitBlt(memDC, 0, 0, actualScreenWidth, actualScreenHeight, desktopDC, bounds.X, bounds.Y, SRCCOPY);
+
+                                    using (var screenImg = System.Drawing.Image.FromHbitmap(hBitmap))
+                                    {
+                                        // Calculate position relative to the combined bitmap (scaled by max DPI)
+                                        var relativeX = (int)((bounds.X - minX) * 96.0f / screenDpiX);
+                                        var relativeY = (int)((bounds.Y - minY) * 96.0f / screenDpiY);
+
+                                        System.Diagnostics.Debug.WriteLine($"  Position in combined: ({relativeX},{relativeY})");
+
+                                        // Draw the screen at its correct position
+                                        g.DrawImage(screenImg, relativeX, relativeY);
+                                    }
+                                }
+                                finally
+                                {
+                                    // Clean up resources for this screen
+                                    SelectObject(memDC, oldBitmap);
+                                    DeleteObject(hBitmap);
+                                    DeleteDC(memDC);
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            // Clean up desktop DC
+                            ReleaseDC(desktopWnd, desktopDC);
+                        }
+                    }
+
                     return combinedScreenshot;
                 }
             }
@@ -542,8 +531,8 @@ namespace PeerViewer.Network
                 if (parts.Length >= 3)
                 {
                     var peerId = parts[1];
-                    var peerName = parts[2];
-                    var machineName = parts[2];
+                    var peerName = parts[2]; // user name
+                    var machineName = remoteEndPoint.Address.ToString();
                     var osVersion = parts.Length > 3 ? parts[3] : "Unknown";
 
                     // Parse screen count - ensure we get the correct value
@@ -661,7 +650,7 @@ namespace PeerViewer.Network
             {
                 var screenCount = System.Windows.Forms.Screen.AllScreens.Length;
                 var (maxWidth, maxHeight) = GetMaxScreenResolution();
-                var message = $"PEER_DISCOVERY:{Environment.MachineName}:{Environment.MachineName}:{Environment.OSVersion}:{screenCount}:{maxWidth}x{maxHeight}";
+                var message = $"PEER_DISCOVERY:{Environment.MachineName}:{LocalUserName}:{Environment.OSVersion}:{screenCount}:{maxWidth}x{maxHeight}";
                 var data = System.Text.Encoding.UTF8.GetBytes(message);
                 
                 System.Diagnostics.Debug.WriteLine($"Broadcasting discovery message: {message}");
@@ -806,6 +795,47 @@ namespace PeerViewer.Network
                     _discoveredPeers.Remove(peer);
                     PeerLost?.Invoke(this, peer);
                 }
+            }
+        }
+
+        private void RemovePeerById(string peerId)
+        {
+            lock (_peersLock)
+            {
+                var peer = _discoveredPeers.FirstOrDefault(p => p.Id == peerId);
+                if (peer != null)
+                {
+                    _discoveredPeers.Remove(peer);
+                    peer.IsOnline = false;
+                    System.Diagnostics.Debug.WriteLine($"Peer removed due to exit: {peer.Name} ({peer.Id})");
+                    PeerLost?.Invoke(this, peer);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Peer exit received, but no matching peer found for Id: {peerId}");
+                }
+            }
+        }
+
+        private void BroadcastExitNotification()
+        {
+            try
+            {
+                var message = $"PEER_EXIT:{Environment.MachineName}";
+                var data = System.Text.Encoding.UTF8.GetBytes(message);
+
+                using (var client = new UdpClient())
+                {
+                    client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
+                    client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    var broadcastEndPoint = new IPEndPoint(IPAddress.Broadcast, _discoveryPort);
+                    client.Send(data, data.Length, broadcastEndPoint);
+                    System.Diagnostics.Debug.WriteLine($"Broadcasted exit notification: {message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to broadcast exit notification: {ex.Message}");
             }
         }
 
