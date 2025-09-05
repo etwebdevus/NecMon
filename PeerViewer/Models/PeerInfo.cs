@@ -14,11 +14,11 @@ namespace PeerViewer.Models
         public string UserName { get => Name; set => Name = value; }
         public string OSVersion { get; set; }
         private int _screenCount = 1;
-        public int ScreenCount 
-        { 
+        public int ScreenCount
+        {
             get => _screenCount;
-            set 
-            { 
+            set
+            {
                 _screenCount = value;
                 // Debug: Log when ScreenCount changes
                 System.Diagnostics.Debug.WriteLine($"PeerInfo ScreenCount changed to: {value} for peer: {Name}");

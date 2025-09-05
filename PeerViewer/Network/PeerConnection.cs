@@ -1,11 +1,9 @@
+using PeerViewer.Models;
 using System;
 using System.Drawing;
 using System.IO;
-using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
-using PeerViewer.Models;
 
 namespace PeerViewer.Network
 {
@@ -33,19 +31,19 @@ namespace PeerViewer.Network
             try
             {
                 System.Diagnostics.Debug.WriteLine($"Attempting to connect to {PeerInfo.Name} at {PeerInfo.EndPoint}");
-                
+
                 _client = new TcpClient();
                 _client.ReceiveTimeout = 10000; // 10 second timeout
                 _client.SendTimeout = 10000;
-                
+
                 await _client.ConnectAsync(PeerInfo.EndPoint.Address, PeerInfo.EndPoint.Port);
                 _stream = _client.GetStream();
-                
+
                 System.Diagnostics.Debug.WriteLine($"Successfully connected to {PeerInfo.Name}");
-                
+
                 // Start listening for data
                 _ = Task.Run(ListenForDataAsync);
-                
+
                 return true;
             }
             catch (Exception ex)
@@ -88,7 +86,7 @@ namespace PeerViewer.Network
         private async Task ListenForDataAsync()
         {
             var buffer = new byte[8192];
-            
+
             try
             {
                 while (IsConnected && !_disposed)
@@ -119,10 +117,10 @@ namespace PeerViewer.Network
                     System.Diagnostics.Debug.WriteLine($"⚠ Empty data received from {PeerInfo.Name}");
                     return;
                 }
-                
+
                 var message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 System.Diagnostics.Debug.WriteLine($"📨 Received message from {PeerInfo.Name}: {message.Substring(0, Math.Min(50, message.Length))}...");
-                
+
                 if (message.StartsWith("SCREENSHOT:"))
                 {
                     System.Diagnostics.Debug.WriteLine($"📸 Processing screenshot request from {PeerInfo.Name}");
@@ -159,29 +157,29 @@ namespace PeerViewer.Network
                 // Read screenshot size with timeout
                 var sizeBuffer = new byte[8];
                 var sizeBytesRead = await _stream.ReadAsync(sizeBuffer, 0, 8);
-                
+
                 if (sizeBytesRead != 8)
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠ Incomplete size data: expected 8 bytes, got {sizeBytesRead}");
                     return null;
                 }
-                
+
                 var size = BitConverter.ToInt64(sizeBuffer, 0);
-                
+
                 // Validate size to prevent overflow
                 if (size <= 0 || size > 100 * 1024 * 1024) // Max 100MB
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠ Invalid screenshot size: {size} bytes (max allowed: 100MB)");
                     return null;
                 }
-                
+
                 // Check if size can fit in int (for buffer allocation)
                 if (size > int.MaxValue)
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠ Screenshot size too large for buffer allocation: {size} bytes");
                     return null;
                 }
-                
+
                 System.Diagnostics.Debug.WriteLine($"📸 Receiving screenshot: {size} bytes from {PeerInfo.Name}");
 
                 // Read screenshot data with proper buffer management and timeout
@@ -190,7 +188,7 @@ namespace PeerViewer.Network
                 var remainingBytes = (int)size;
                 var startTime = DateTime.Now;
                 var timeout = TimeSpan.FromSeconds(30); // 30 second timeout
-                
+
                 while (totalRead < size && remainingBytes > 0)
                 {
                     // Check timeout
@@ -199,26 +197,26 @@ namespace PeerViewer.Network
                         System.Diagnostics.Debug.WriteLine($"⚠ Timeout while receiving screenshot from {PeerInfo.Name}");
                         return null;
                     }
-                    
+
                     var bytesToRead = Math.Min(remainingBytes, 8192); // Read in 8KB chunks
                     var read = await _stream.ReadAsync(screenshotBuffer, totalRead, bytesToRead);
-                    
+
                     if (read == 0)
                     {
                         System.Diagnostics.Debug.WriteLine($"⚠ Connection closed while receiving screenshot data");
                         break;
                     }
-                    
+
                     totalRead += read;
                     remainingBytes -= read;
-                    
+
                     System.Diagnostics.Debug.WriteLine($"📥 Read {read} bytes, total: {totalRead}/{size}");
                 }
 
                 if (totalRead == size)
                 {
                     System.Diagnostics.Debug.WriteLine($"✓ Screenshot data received completely: {totalRead} bytes");
-                    
+
                     using (var ms = new MemoryStream(screenshotBuffer))
                     {
                         var image = Image.FromStream(ms);
@@ -230,7 +228,7 @@ namespace PeerViewer.Network
                             Height = image.Height,
                             Timestamp = DateTime.Now
                         };
-                        
+
                         System.Diagnostics.Debug.WriteLine($"✓ Screenshot processed: {image.Width}x{image.Height}");
                         return screenshotData;
                     }
@@ -287,7 +285,7 @@ namespace PeerViewer.Network
             lock (_lockObject)
             {
                 if (_disposed) return;
-                
+
                 _stream?.Close();
                 _client?.Close();
                 _disposed = true;

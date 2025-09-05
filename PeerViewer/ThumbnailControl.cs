@@ -1,8 +1,7 @@
+using PeerViewer.Models;
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using System.Linq;
-using PeerViewer.Models;
 
 namespace PeerViewer
 {
@@ -29,10 +28,10 @@ namespace PeerViewer
             PeerName = peerName;
             ScreenCount = screenCount;
             PeerResolution = peerResolution;
-            
+
             // Debug: Log the constructor values
             System.Diagnostics.Debug.WriteLine($"ThumbnailControl Constructor - PeerId: {peerId}, PeerName: {peerName}, ScreenCount: {screenCount}, Resolution: {peerResolution}");
-            
+
             InitializeComponent();
         }
 
@@ -40,7 +39,7 @@ namespace PeerViewer
         {
             // Debug: Log the ScreenCount value at the start of InitializeComponent
             System.Diagnostics.Debug.WriteLine($"InitializeComponent - ScreenCount: {ScreenCount}, PeerName: {PeerName}");
-            
+
             // Calculate size based on screen count
             int baseWidth = 500;
             int thumbnailWidth = 480;
@@ -53,7 +52,7 @@ namespace PeerViewer
                 float aspectRatio = (float)ScreenCount * 16.0f / 9.0f; // Assume 16:9 aspect ratio per screen
                 thumbnailWidth = Math.Min(1280, (int)(thumbnailHeight * aspectRatio));
                 baseWidth = thumbnailWidth + 20; // Add padding
-                
+
                 // Debug: Log the calculated dimensions
                 System.Diagnostics.Debug.WriteLine($"Multi-screen thumbnail - ScreenCount: {ScreenCount}, Calculated Width: {thumbnailWidth}, Base Width: {baseWidth}");
             }
@@ -132,7 +131,7 @@ namespace PeerViewer
             if (screenshot != null && screenshot.Screenshot != null)
             {
                 _currentScreenshot = screenshot;
-                
+
                 // Update thumbnail
                 if (_thumbnailPictureBox.Image != null)
                 {

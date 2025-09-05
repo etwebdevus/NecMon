@@ -1,14 +1,12 @@
+using Microsoft.Win32;
+using PeerViewer.Models;
+using PeerViewer.Network;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Win32;
-using PeerViewer.Models;
-using PeerViewer.Network;
 
 namespace PeerViewer
 {
@@ -49,7 +47,7 @@ namespace PeerViewer
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.ShowInTaskbar = false; // Hide from taskbar
             this.WindowState = FormWindowState.Minimized; // Start minimized
-            
+
             // Set application icon
             try
             {
@@ -239,7 +237,7 @@ namespace PeerViewer
         {
             // Create tray menu
             _trayMenu = new ContextMenuStrip();
-            
+
             var settingsItem = new ToolStripMenuItem("Settings");
             settingsItem.Click += OnSettingsClicked;
             _trayMenu.Items.Add(settingsItem);
@@ -258,7 +256,7 @@ namespace PeerViewer
             _trayIcon.Text = "Peer Viewer - Network Screenshot Viewer";
             _trayIcon.ContextMenuStrip = _trayMenu;
             _trayIcon.Visible = true;
-            
+
             // Double-click tray icon to show window
             _trayIcon.DoubleClick += OnTrayIconDoubleClicked;
         }
@@ -294,14 +292,14 @@ namespace PeerViewer
             {
                 // Set up Windows startup
                 SetWindowsStartup();
-                
+
                 UpdateStatus("Starting peer discovery...");
                 await _peerDiscovery.StartAsync();
                 UpdateStatus("Peer discovery started. Scanning for peers...");
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to start peer discovery: {ex.Message}", "Error", 
+                MessageBox.Show($"Failed to start peer discovery: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 UpdateStatus("Failed to start peer discovery");
             }
@@ -365,10 +363,10 @@ namespace PeerViewer
 
             AddPeerToList(peerInfo);
             CreateThumbnailControl(peerInfo);
-            var resolutionInfo = !string.IsNullOrEmpty(peerInfo.Resolution) && peerInfo.Resolution != "Unknown" 
+            var resolutionInfo = !string.IsNullOrEmpty(peerInfo.Resolution) && peerInfo.Resolution != "Unknown"
                 ? $" ({peerInfo.Resolution})" : "";
             UpdateStatus($"Peer discovered: {peerInfo.Name}{resolutionInfo}");
-            
+
             // Automatically connect to the peer
             await ConnectToPeerAsync(peerInfo);
         }
@@ -392,14 +390,14 @@ namespace PeerViewer
                 {
                     // Ignore errors when stopping stream
                 }
-                
+
                 connection.Dispose();
                 _peerConnections.Remove(peerInfo.Id);
             }
 
             RemovePeerFromList(peerInfo);
             RemoveThumbnailControl(peerInfo);
-            var resolutionInfo = !string.IsNullOrEmpty(peerInfo.Resolution) && peerInfo.Resolution != "Unknown" 
+            var resolutionInfo = !string.IsNullOrEmpty(peerInfo.Resolution) && peerInfo.Resolution != "Unknown"
                 ? $" ({peerInfo.Resolution})" : "";
             UpdateStatus($"Peer lost: {peerInfo.Name}{resolutionInfo}");
         }
@@ -463,9 +461,9 @@ namespace PeerViewer
                 }
             }
 
-                            var thumbnail = new ThumbnailControl(peerInfo.Id, peerInfo.Name, peerInfo.ScreenCount, peerInfo.Resolution);
+            var thumbnail = new ThumbnailControl(peerInfo.Id, peerInfo.Name, peerInfo.ScreenCount, peerInfo.Resolution);
             thumbnail.ThumbnailClicked += OnThumbnailClicked;
-            
+
             _thumbnailControls[peerInfo.Id] = thumbnail;
             _thumbnailsPanel.Controls.Add(thumbnail);
         }
@@ -512,7 +510,7 @@ namespace PeerViewer
                 {
                     _peersListView.Items[i].Selected = true;
                     _peersListView.Items[i].Focused = true;
-                    
+
                     // Open or show screenshot viewer for this peer
                     OpenScreenshotViewer(info);
                     break;
@@ -567,7 +565,7 @@ namespace PeerViewer
 
             // Create new viewer
             var viewer = new ScreenshotViewerForm(peerInfo);
-            viewer.FormClosed += (sender, e) => 
+            viewer.FormClosed += (sender, e) =>
             {
                 // Remove from dictionary when form is closed
                 if (_screenshotViewers.ContainsKey(peerInfo.Id))
@@ -601,12 +599,12 @@ namespace PeerViewer
             {
                 UpdateStatus("Refreshing peer list...");
                 _peersListView.Items.Clear();
-                
+
                 foreach (var peer in _peerDiscovery.DiscoveredPeers)
                 {
                     AddPeerToList(peer);
                 }
-                
+
                 UpdateStatus($"Peer list refreshed. Found {_peersListView.Items.Count} peers.");
             }
             catch (Exception ex)
@@ -623,7 +621,7 @@ namespace PeerViewer
             try
             {
                 UpdateStatus($"Connecting to {peerInfo.Name}...");
-                
+
                 var connection = new PeerConnection(peerInfo);
                 connection.ScreenshotReceived += OnScreenshotReceived;
                 connection.ErrorOccurred += OnConnectionError;
@@ -633,7 +631,7 @@ namespace PeerViewer
                 {
                     _peerConnections[peerInfo.Id] = connection;
                     UpdateStatus($"Connected to {peerInfo.Name}");
-                    
+
                     // Request initial screenshot
                     await connection.RequestScreenshotAsync();
                 }
@@ -786,7 +784,7 @@ namespace PeerViewer
                     // Already disabled, re-enable
                     _screenshotCaptureDisabled = false;
                     _peerDiscovery.ScreenshotCaptureDisabled = false;
-                    
+
                     // Update button appearance
                     var button = sender as Button;
                     if (button != null)
@@ -794,7 +792,7 @@ namespace PeerViewer
                         button.Text = "Disable Screencapture";
                         button.BackColor = Color.LightCoral;
                     }
-                    
+
                     UpdateStatus("Screenshot capture re-enabled");
                     return;
                 }
@@ -854,7 +852,7 @@ namespace PeerViewer
                         {
                             _screenshotCaptureDisabled = true;
                             _peerDiscovery.ScreenshotCaptureDisabled = true;
-                            
+
                             // Update button appearance
                             var button = sender as Button;
                             if (button != null)
@@ -862,14 +860,14 @@ namespace PeerViewer
                                 button.Text = "Enable Screencapture";
                                 button.BackColor = Color.LightGreen;
                             }
-                            
+
                             UpdateStatus("Screenshot capture disabled - no screenshots will be sent to peers");
-                            MessageBox.Show("Screenshot capture has been disabled.\nNo screenshots will be sent to other peers.", 
+                            MessageBox.Show("Screenshot capture has been disabled.\nNo screenshots will be sent to other peers.",
                                 "Screenshot Capture Disabled", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                         else
                         {
-                            MessageBox.Show("Incorrect password.\nScreenshot capture remains enabled.", 
+                            MessageBox.Show("Incorrect password.\nScreenshot capture remains enabled.",
                                 "Access Denied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                     }
@@ -952,7 +950,7 @@ namespace PeerViewer
                         }
                         else
                         {
-                            MessageBox.Show("Incorrect password.\nWindow access denied.", 
+                            MessageBox.Show("Incorrect password.\nWindow access denied.",
                                 "Access Denied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         }
                     }
@@ -960,7 +958,7 @@ namespace PeerViewer
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error showing window: {ex.Message}", "Error", 
+                MessageBox.Show($"Error showing window: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -974,7 +972,7 @@ namespace PeerViewer
             this.Focus();
         }
 
-        
+
 
         private void OnFormResize(object sender, EventArgs e)
         {

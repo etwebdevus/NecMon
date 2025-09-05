@@ -1,6 +1,6 @@
+using PeerViewer.Models;
 using System;
 using System.Collections.Generic;
-using PeerViewer.Models;
 
 namespace PeerViewer.Network
 {
@@ -46,7 +46,7 @@ namespace PeerViewer.Network
             }
         }
 
-        
+
 
         public void ClearScreenshots()
         {
@@ -73,7 +73,7 @@ namespace PeerViewer.Network
             }
         }
 
-        
+
 
         public void Dispose()
         {

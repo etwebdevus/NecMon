@@ -1,12 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Windows.Forms;
-using System.IO;
-using System.Threading.Tasks;
 using PeerViewer.Models;
-using PeerViewer.Network;
+using System;
+using System.Drawing;
+using System.Windows.Forms;
 
 namespace PeerViewer
 {
@@ -29,7 +24,7 @@ namespace PeerViewer
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MinimumSize = new Size(800, 600);
-            
+
             // Set application icon
             try
             {
@@ -79,7 +74,7 @@ namespace PeerViewer
             if (screenshot != null && screenshot.Screenshot != null)
             {
                 _currentScreenshot = screenshot;
-                
+
                 // Show the full screenshot
                 ShowScreenshot(screenshot.Screenshot);
 

@@ -1,13 +1,11 @@
+using PeerViewer.Models;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-
-using PeerViewer.Models;
 
 namespace PeerViewer.Network
 {
@@ -45,7 +43,7 @@ namespace PeerViewer.Network
             try
             {
                 System.Diagnostics.Debug.WriteLine("Starting PeerDiscovery...");
-                
+
                 // Start discovery listener
                 _discoveryClient = new UdpClient(_discoveryPort);
                 System.Diagnostics.Debug.WriteLine($"UDP Discovery listener started on port {_discoveryPort}");
@@ -73,7 +71,7 @@ namespace PeerViewer.Network
         public void Stop()
         {
             _isRunning = false;
-            
+
             // Notify peers on the LAN that this app is exiting so they can remove us immediately
             try
             {
@@ -83,10 +81,10 @@ namespace PeerViewer.Network
             {
                 // Best-effort; ignore errors during shutdown broadcast
             }
-            
+
             _discoveryClient?.Close();
             _listener?.Stop();
-            
+
             _discoveryClient?.Dispose();
             _listener = null;
         }
@@ -97,16 +95,16 @@ namespace PeerViewer.Network
             {
                 System.Diagnostics.Debug.WriteLine("Discovery listener started, waiting for messages...");
                 System.Diagnostics.Debug.WriteLine($"Listening on port {_discoveryPort} for UDP discovery messages");
-                
+
                 while (_isRunning)
                 {
                     var result = await _discoveryClient.ReceiveAsync();
                     var message = System.Text.Encoding.UTF8.GetString(result.Buffer);
-                    
+
                     System.Diagnostics.Debug.WriteLine($"📨 RECEIVED: {result.Buffer.Length} bytes from {result.RemoteEndPoint}");
                     System.Diagnostics.Debug.WriteLine($"   Message: {message}");
                     System.Diagnostics.Debug.WriteLine($"   Timestamp: {DateTime.Now:HH:mm:ss.fff}");
-                    
+
                     if (message.StartsWith("PEER_DISCOVERY:"))
                     {
                         System.Diagnostics.Debug.WriteLine($"   ✓ Valid PEER_DISCOVERY message - processing...");
@@ -162,11 +160,11 @@ namespace PeerViewer.Network
                 {
                     var buffer = new byte[1024];
                     var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length);
-                    
+
                     if (bytesRead > 0)
                     {
                         var message = System.Text.Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                        
+
                         if (message == "SCREENSHOT_REQUEST")
                         {
                             // Start continuous screenshot streaming
@@ -199,23 +197,23 @@ namespace PeerViewer.Network
                         {
                             screenshot.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
                             var imageData = ms.ToArray();
-                            
+
                             // Send screenshot header
                             var header = "SCREENSHOT:";
                             var headerData = System.Text.Encoding.UTF8.GetBytes(header);
                             await stream.WriteAsync(headerData, 0, headerData.Length);
-                            
+
                             // Send screenshot size
                             var sizeData = BitConverter.GetBytes((long)imageData.Length);
                             await stream.WriteAsync(sizeData, 0, sizeData.Length);
-                            
+
                             // Send screenshot data
                             await stream.WriteAsync(imageData, 0, imageData.Length);
                             await stream.FlushAsync();
                             ms.Close();
                         }
                     }
-                    
+
                     // Wait before next screenshot (default 1 second, can be adjusted)
                     await Task.Delay(1000);
                 }
@@ -239,26 +237,26 @@ namespace PeerViewer.Network
             {
                 // Get all screens
                 var screens = System.Windows.Forms.Screen.AllScreens;
-                
+
                 if (screens.Length == 1)
                 {
                     // Single monitor - capture with DPI awareness
                     var screen = screens[0];
                     var bounds = screen.Bounds;
-                    
+
                     // Get DPI scaling for this specific screen
                     var (dpiX, dpiY) = GetDpiForScreen(screen);
-                    
+
                     System.Diagnostics.Debug.WriteLine($"Single screen capture: {screen.DeviceName}");
                     System.Diagnostics.Debug.WriteLine($"  Bounds: {bounds.Width}x{bounds.Height} at ({bounds.X},{bounds.Y})");
                     System.Diagnostics.Debug.WriteLine($"  DPI: {dpiX}x{dpiY} (scaling: {dpiX / 96.0f:F2}x, {dpiY / 96.0f:F2}x)");
-                    
+
                     // Calculate actual pixel dimensions based on DPI
                     var actualWidth = (int)(bounds.Width * dpiX / 96.0f);
                     var actualHeight = (int)(bounds.Height * dpiY / 96.0f);
-                    
+
                     System.Diagnostics.Debug.WriteLine($"  Actual capture size: {actualWidth}x{actualHeight}");
-                    
+
                     // Create bitmap with actual pixel dimensions
                     var screenshot = new System.Drawing.Bitmap(actualWidth, actualHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
@@ -293,24 +291,24 @@ namespace PeerViewer.Network
                 {
                     // Multiple monitors - iterate through each screen and merge with DPI awareness
                     System.Diagnostics.Debug.WriteLine($"Multi-screen capture: {screens.Length} screens");
-                    
+
                     // Calculate the total bounds that encompass all screens
                     var minX = screens.Min(s => s.Bounds.X);
                     var minY = screens.Min(s => s.Bounds.Y);
                     var maxX = screens.Max(s => s.Bounds.X + s.Bounds.Width);
                     var maxY = screens.Max(s => s.Bounds.Y + s.Bounds.Height);
-                    
+
                     var totalWidth = maxX - minX;
                     var totalHeight = maxY - minY;
-                     
-                     // Calculate actual pixel dimensions for the combined image using max DPI
-                     var actualTotalWidth = totalWidth;
-                     var actualTotalHeight = totalHeight;
-                     
-                     System.Diagnostics.Debug.WriteLine($"Actual combined size: {actualTotalWidth}x{actualTotalHeight}");
-                     
-                     // Create combined bitmap with actual pixel dimensions
-                     var combinedScreenshot = new System.Drawing.Bitmap(actualTotalWidth, actualTotalHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+                    // Calculate actual pixel dimensions for the combined image using max DPI
+                    var actualTotalWidth = totalWidth;
+                    var actualTotalHeight = totalHeight;
+
+                    System.Diagnostics.Debug.WriteLine($"Actual combined size: {actualTotalWidth}x{actualTotalHeight}");
+
+                    // Create combined bitmap with actual pixel dimensions
+                    var combinedScreenshot = new System.Drawing.Bitmap(actualTotalWidth, actualTotalHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
                     using (var g = System.Drawing.Graphics.FromImage(combinedScreenshot))
                     {
@@ -446,14 +444,14 @@ namespace PeerViewer.Network
                 var centerPoint = new System.Drawing.Point(
                     screen.Bounds.X + screen.Bounds.Width / 2,
                     screen.Bounds.Y + screen.Bounds.Height / 2);
-                
+
                 var monitorHandle = MonitorFromPoint(centerPoint, MONITOR_DEFAULTTONEAREST);
-                
+
                 if (monitorHandle != IntPtr.Zero)
                 {
                     uint dpiX, dpiY;
                     var result = GetDpiForMonitor(monitorHandle, MDT_EFFECTIVE_DPI, out dpiX, out dpiY);
-                    
+
                     if (result == 0) // S_OK
                     {
                         System.Diagnostics.Debug.WriteLine($"Screen {screen.DeviceName} DPI: {dpiX}x{dpiY}");
@@ -473,7 +471,7 @@ namespace PeerViewer.Network
             {
                 System.Diagnostics.Debug.WriteLine($"Error getting DPI for screen {screen.DeviceName}: {ex.Message}");
             }
-            
+
             // Fallback to primary monitor DPI
             var fallbackDpi = GetDpiForWindow(GetDesktopWindow());
             System.Diagnostics.Debug.WriteLine($"Using fallback DPI for screen {screen.DeviceName}: {fallbackDpi}");
@@ -488,7 +486,7 @@ namespace PeerViewer.Network
             try
             {
                 var screens = System.Windows.Forms.Screen.AllScreens;
-                
+
                 if (screens.Length == 1)
                 {
                     var screen = screens[0];
@@ -503,10 +501,10 @@ namespace PeerViewer.Network
                     var minY = screens.Min(s => s.Bounds.Y);
                     var maxX = screens.Max(s => s.Bounds.X + s.Bounds.Width);
                     var maxY = screens.Max(s => s.Bounds.Y + s.Bounds.Height);
-                    
+
                     var totalWidth = maxX - minX;
                     var totalHeight = maxY - minY;
-                    
+
                     System.Diagnostics.Debug.WriteLine($"Multi-screen max resolution: {totalWidth}x{totalHeight}");
                     return (totalWidth, totalHeight);
                 }
@@ -527,7 +525,7 @@ namespace PeerViewer.Network
                 var parts = message.Split(':');
                 System.Diagnostics.Debug.WriteLine($"Processing discovery message: {message}");
                 System.Diagnostics.Debug.WriteLine($"Message parts count: {parts.Length}");
-                
+
                 if (parts.Length >= 3)
                 {
                     var peerId = parts[1];
@@ -601,7 +599,7 @@ namespace PeerViewer.Network
                     // Debug: Log before update
                     System.Diagnostics.Debug.WriteLine($"Before update - Existing peer: {existingPeer.Name}, ScreenCount: {existingPeer.ScreenCount}");
                     System.Diagnostics.Debug.WriteLine($"Updating with - New peer: {peerInfo.Name}, ScreenCount: {peerInfo.ScreenCount}");
-                    
+
                     // Update existing peer with new information
                     existingPeer.LastSeen = peerInfo.LastSeen;
                     existingPeer.IsOnline = true;
@@ -609,7 +607,7 @@ namespace PeerViewer.Network
                     existingPeer.MachineName = peerInfo.MachineName; // Update machine name
                     existingPeer.OSVersion = peerInfo.OSVersion; // Update OS version
                     existingPeer.Resolution = peerInfo.Resolution; // Update resolution
-                    
+
                     // Debug: Log after update
                     System.Diagnostics.Debug.WriteLine($"After update - Existing peer: {existingPeer.Name}, ScreenCount: {existingPeer.ScreenCount}, Resolution: {existingPeer.Resolution}");
                 }
@@ -631,10 +629,10 @@ namespace PeerViewer.Network
                 {
                     // Send discovery broadcast
                     await SendDiscoveryBroadcastAsync();
-                    
+
                     // Clean up offline peers
                     CleanupOfflinePeers();
-                    
+
                     await Task.Delay(30000); // Scan every 30 seconds
                 }
                 catch (Exception)
@@ -652,14 +650,14 @@ namespace PeerViewer.Network
                 var (maxWidth, maxHeight) = GetMaxScreenResolution();
                 var message = $"PEER_DISCOVERY:{Environment.MachineName}:{LocalUserName}:{Environment.OSVersion}:{screenCount}:{maxWidth}x{maxHeight}";
                 var data = System.Text.Encoding.UTF8.GetBytes(message);
-                
+
                 System.Diagnostics.Debug.WriteLine($"Broadcasting discovery message: {message}");
                 System.Diagnostics.Debug.WriteLine($"Screen count detected: {screenCount}");
                 System.Diagnostics.Debug.WriteLine($"Max resolution: {maxWidth}x{maxHeight}");
-                
+
                 // Filter network interfaces to prioritize local Ethernet and exclude VMware
                 var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces()
-                    .Where(ni => ni.OperationalStatus == OperationalStatus.Up && 
+                    .Where(ni => ni.OperationalStatus == OperationalStatus.Up &&
                                  ni.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
                                  !ni.Name.ToLower().Contains("vmware") &&
                                  !ni.Name.ToLower().Contains("virtual") &&
@@ -671,7 +669,7 @@ namespace PeerViewer.Network
                 // If a specific interface is preferred, prioritize it
                 if (!string.IsNullOrEmpty(preferredInterface))
                 {
-                    var preferred = networkInterfaces.FirstOrDefault(ni => 
+                    var preferred = networkInterfaces.FirstOrDefault(ni =>
                         ni.Name.Equals(preferredInterface, StringComparison.OrdinalIgnoreCase));
                     if (preferred != null)
                     {
@@ -698,16 +696,16 @@ namespace PeerViewer.Network
                         {
                             var localIP = unicastAddress.Address;
                             var subnetMask = unicastAddress.IPv4Mask;
-                            
+
                             System.Diagnostics.Debug.WriteLine($"  IP: {localIP}, Mask: {subnetMask}, IsPrivate: {IsPrivateNetwork(localIP)}");
-                            
+
                             if (subnetMask != null)
                             {
                                 var broadcastIP = GetBroadcastAddress(localIP, subnetMask);
                                 var broadcastEndPoint = new IPEndPoint(broadcastIP, _discoveryPort);
-                                
+
                                 System.Diagnostics.Debug.WriteLine($"  Broadcasting on interface {networkInterface.Name} ({localIP}) to {broadcastIP}");
-                                
+
                                 using (var client = new UdpClient())
                                 {
                                     client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
@@ -737,15 +735,15 @@ namespace PeerViewer.Network
         private int GetInterfacePriority(NetworkInterface ni)
         {
             var name = ni.Name.ToLower();
-            
+
             // Ethernet has highest priority
             if (name.Contains("ethernet") || name.Contains("lan") || ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet)
                 return 1;
-            
+
             // WiFi has medium priority
             if (name.Contains("wi-fi") || name.Contains("wireless") || ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211)
                 return 2;
-            
+
             // Other interfaces have lower priority
             return 3;
         }
@@ -753,10 +751,10 @@ namespace PeerViewer.Network
         private bool IsPrivateNetwork(IPAddress address)
         {
             var bytes = address.GetAddressBytes();
-            
+
             // Specifically target 172.20.0.0 network
             if (bytes[0] == 172 && bytes[1] == 20) return true; // 172.20.0.0/16
-            
+
             return false;
         }
 
@@ -764,13 +762,13 @@ namespace PeerViewer.Network
         {
             var ipAdressBytes = address.GetAddressBytes();
             var subnetMaskBytes = subnetMask.GetAddressBytes();
-            
+
             var broadcastAddress = new byte[4];
             for (int i = 0; i < 4; i++)
             {
                 broadcastAddress[i] = (byte)(ipAdressBytes[i] | (subnetMaskBytes[i] ^ 255));
             }
-            
+
             return new IPAddress(broadcastAddress);
         }
 
@@ -780,7 +778,7 @@ namespace PeerViewer.Network
             {
                 var now = DateTime.Now;
                 var offlinePeers = new List<PeerInfo>();
-                
+
                 foreach (var peer in _discoveredPeers)
                 {
                     if (now - peer.LastSeen > TimeSpan.FromMinutes(2))
@@ -789,7 +787,7 @@ namespace PeerViewer.Network
                         offlinePeers.Add(peer);
                     }
                 }
-                
+
                 foreach (var peer in offlinePeers)
                 {
                     _discoveredPeers.Remove(peer);
